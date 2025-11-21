@@ -14,7 +14,7 @@ A beautiful terminal UI for checking UK train times, powered by the Realtime Tra
 
 ```bash
 # Clone the repository
-git clone https://github.com/barryhall/rtt-cli.git
+git clone https://github.com/baz-sh/rtt-cli.git
 cd rtt-cli
 
 # Build the binary
