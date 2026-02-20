@@ -6,7 +6,7 @@ A beautiful terminal UI for checking UK train times, powered by the Realtime Tra
 
 - 🚂 Search for direct train services between UK stations
 - 🔍 Fuzzy search for stations by name or code
-- 🎨 Colorful, easy-to-read departure listings
+- 🎨 Colorful, easy-to-read departure listings with automatic light/dark mode support
 - ⚡ Fast and lightweight (single binary)
 - 📊 Shows departure times, platforms, service operators, and journey duration
 
@@ -85,6 +85,10 @@ Time      Leaving       Dep Plat  Arr Plat  Service          Duration
 14:45     20min         7         14        Avanti West C... 2hr 10min
 15:00     35min         8         13        Avanti West C... 2hr 7min
 ```
+
+## Theming
+
+The application automatically detects whether your terminal has a light or dark background and adjusts its color palette accordingly. No configuration is needed — it works out of the box on most modern terminals (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal, etc.).
 
 ## API
 

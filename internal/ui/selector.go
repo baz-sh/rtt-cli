@@ -32,16 +32,16 @@ const (
 )
 
 type SelectorModel struct {
-	step         selectionStep
-	fromStation  *stationItem
-	toStation    *stationItem
-	list         list.Model
-	textInput    textinput.Model
-	apiClient    *api.Client
-	departures   []api.Departure
-	err          error
-	width        int
-	height       int
+	step        selectionStep
+	fromStation *stationItem
+	toStation   *stationItem
+	list        list.Model
+	textInput   textinput.Model
+	apiClient   *api.Client
+	departures  []api.Departure
+	err         error
+	width       int
+	height      int
 }
 
 type searchCompleteMsg struct {
@@ -143,8 +143,9 @@ func (m SelectorModel) View() string {
 		return m.list.View()
 
 	case searching:
+		theme := CurrentTheme()
 		style := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("205")).
+			Foreground(theme.Title).
 			Bold(true).
 			Padding(1, 0)
 		return style.Render(fmt.Sprintf("🚂 Searching for trains from %s to %s...",
@@ -152,8 +153,9 @@ func (m SelectorModel) View() string {
 
 	case showingResults:
 		if m.err != nil {
+			theme := CurrentTheme()
 			errorStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("196")).
+				Foreground(theme.Error).
 				Bold(true).
 				Padding(1, 0)
 			return errorStyle.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err))
@@ -173,9 +175,11 @@ func (m *SelectorModel) searchDepartures() tea.Cmd {
 }
 
 func (m SelectorModel) renderDepartures() string {
+	theme := CurrentTheme()
+
 	if len(m.departures) == 0 {
 		emptyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
+			Foreground(theme.Muted).
 			Padding(1, 0)
 		return emptyStyle.Render("No departures found.\n\nPress q to quit")
 	}
@@ -183,7 +187,7 @@ func (m SelectorModel) renderDepartures() string {
 	var sb strings.Builder
 
 	// Title
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
 	sb.WriteString(titleStyle.Render(fmt.Sprintf("🚂 Trains from %s to %s", m.fromStation.name, m.toStation.name)))
 	sb.WriteString("\n\n")
 
@@ -204,32 +208,30 @@ func (m SelectorModel) renderDepartures() string {
 	// Create table with lipgloss table package
 	t := table.New().
 		Border(lipgloss.NormalBorder()).
-		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("238"))).
+		BorderStyle(lipgloss.NewStyle().Foreground(theme.Border)).
 		Headers("Time", "Leaving", "Dep Plat", "Arr Plat", "Service", "Duration").
 		Rows(rows...).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			// row -1 might be header? Let's check
 			if row == -1 {
 				return lipgloss.NewStyle().
-					Foreground(lipgloss.Color("241")).
+					Foreground(theme.Muted).
 					Bold(true).
 					Align(lipgloss.Left)
 			}
-			// row 0 is the first data row, not the header
 			base := lipgloss.NewStyle().Align(lipgloss.Left)
 			switch col {
 			case 0: // Time
-				return base.Foreground(lipgloss.Color("212")).Bold(true)
+				return base.Foreground(theme.Time).Bold(true)
 			case 1: // Leaving
-				return base.Foreground(lipgloss.Color("214"))
+				return base.Foreground(theme.Leaving)
 			case 2: // Dep Platform
-				return base.Foreground(lipgloss.Color("196"))
+				return base.Foreground(theme.DepPlatform)
 			case 3: // Arr Platform
-				return base.Foreground(lipgloss.Color("46"))
+				return base.Foreground(theme.ArrPlatform)
 			case 4: // Service
-				return base.Foreground(lipgloss.Color("201"))
+				return base.Foreground(theme.Service)
 			case 5: // Duration
-				return base.Foreground(lipgloss.Color("141"))
+				return base.Foreground(theme.Duration)
 			default:
 				return base
 			}
@@ -238,7 +240,7 @@ func (m SelectorModel) renderDepartures() string {
 	sb.WriteString(t.String())
 	sb.WriteString("\n\n")
 
-	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
 	sb.WriteString(footerStyle.Render("Press q to quit") + "\n")
 
 	return sb.String()
