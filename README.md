@@ -13,15 +13,15 @@ A beautiful terminal UI for checking UK train times, powered by the Realtime Tra
 ## Installation
 
 ```bash
-# Clone the repository
+go install github.com/baz-sh/rtt-cli@latest
+```
+
+Or build from source:
+
+```bash
 git clone https://github.com/baz-sh/rtt-cli.git
 cd rtt-cli
-
-# Build the binary
 go build -o rtt-cli .
-
-# Optionally, install to your PATH
-go install
 ```
 
 ## Configuration
