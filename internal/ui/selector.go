@@ -2,12 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/barryhall/rtt-cli/internal/api"
 	"github.com/barryhall/rtt-cli/internal/stations"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -42,6 +42,7 @@ type SelectorModel struct {
 	err         error
 	width       int
 	height      int
+	viewport    viewport.Model
 }
 
 type searchCompleteMsg struct {
@@ -86,6 +87,9 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.list.SetSize(msg.Width, msg.Height-4)
+		if m.step == showingResults {
+			m.initResultsViewport()
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -116,16 +120,25 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case showingResults:
-			// Allow user to go back
 			if msg.String() == "esc" || msg.String() == "q" {
 				return m, tea.Quit
 			}
+			switch msg.String() {
+			case "j":
+				m.viewport.ScrollDown(1)
+			case "k":
+				m.viewport.ScrollUp(1)
+			}
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		}
 
 	case searchCompleteMsg:
 		m.step = showingResults
 		m.departures = msg.departures
 		m.err = msg.err
+		m.initResultsViewport()
 		return m, nil
 	}
 
@@ -174,6 +187,13 @@ func (m *SelectorModel) searchDepartures() tea.Cmd {
 	}
 }
 
+func (m *SelectorModel) initResultsViewport() {
+	headerHeight := 3 // title + blank line
+	footerHeight := 3 // blank line + footer + blank line
+	m.viewport = viewport.New(m.width, m.height-headerHeight-footerHeight)
+	m.viewport.SetContent(m.renderTable())
+}
+
 func (m SelectorModel) renderDepartures() string {
 	theme := CurrentTheme()
 
@@ -184,14 +204,19 @@ func (m SelectorModel) renderDepartures() string {
 		return emptyStyle.Render("No departures found.\n\nPress q to quit")
 	}
 
-	var sb strings.Builder
-
-	// Title
 	titleStyle := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
-	sb.WriteString(titleStyle.Render(fmt.Sprintf("🚂 Trains from %s to %s", m.fromStation.name, m.toStation.name)))
-	sb.WriteString("\n\n")
+	title := titleStyle.Render(fmt.Sprintf("🚂 Trains from %s to %s", m.fromStation.name, m.toStation.name))
 
-	// Build table rows
+	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
+	scrollInfo := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))
+	footer := footerStyle.Render(fmt.Sprintf("↑/↓ scroll • %s • q to quit", scrollInfo))
+
+	return title + "\n\n" + m.viewport.View() + "\n\n" + footer + "\n"
+}
+
+func (m SelectorModel) renderTable() string {
+	theme := CurrentTheme()
+
 	rows := [][]string{}
 	for _, dep := range m.departures {
 		formattedTime := formatTime(dep.BookedDepartureTime)
@@ -205,7 +230,6 @@ func (m SelectorModel) renderDepartures() string {
 		})
 	}
 
-	// Create table with lipgloss table package
 	t := table.New().
 		Border(lipgloss.NormalBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(theme.Border)).
@@ -237,13 +261,7 @@ func (m SelectorModel) renderDepartures() string {
 			}
 		})
 
-	sb.WriteString(t.String())
-	sb.WriteString("\n\n")
-
-	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
-	sb.WriteString(footerStyle.Render("Press q to quit") + "\n")
-
-	return sb.String()
+	return t.String()
 }
 
 func formatTime(timeStr string) string {

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -60,12 +62,129 @@ func (c *Client) GetDepartures(from, to string) ([]Departure, error) {
 		return []Departure{}, nil
 	}
 
-	// Search for services
-	searchURL := fmt.Sprintf("%s/search/%s/to/%s",
-		baseURL,
-		url.PathEscape(strings.ToUpper(from)),
-		url.PathEscape(strings.ToUpper(to)))
+	now := time.Now()
+	dateStr := fmt.Sprintf("%d/%02d/%02d", now.Year(), now.Month(), now.Day())
 
+	// Query time windows from now until end of day (2-hour steps to avoid gaps)
+	var timeWindows []string
+	for h := now.Hour(); h < 24; h += 2 {
+		timeWindows = append(timeWindows, fmt.Sprintf("%02d00", h))
+	}
+
+	type searchResult struct {
+		resp *searchResponse
+		err  error
+	}
+	results := make([]searchResult, len(timeWindows))
+
+	var wg sync.WaitGroup
+	for i, tw := range timeWindows {
+		wg.Add(1)
+		go func(idx int, timeWindow string) {
+			defer wg.Done()
+			searchURL := fmt.Sprintf("%s/search/%s/to/%s/%s/%s",
+				baseURL,
+				url.PathEscape(strings.ToUpper(from)),
+				url.PathEscape(strings.ToUpper(to)),
+				dateStr,
+				timeWindow)
+			resp, err := c.fetchSearchResults(searchURL)
+			results[idx] = searchResult{resp: resp, err: err}
+		}(i, tw)
+	}
+	wg.Wait()
+
+	// Deduplicate services by UID
+	seen := make(map[string]bool)
+	type serviceInfo struct {
+		uid                 string
+		bookedDepartureTime string
+		platform            string
+	}
+	var allServices []serviceInfo
+
+	for _, result := range results {
+		if result.err != nil || result.resp == nil {
+			continue
+		}
+		for _, svc := range result.resp.Services {
+			if !svc.IsPassenger || seen[svc.ServiceUID] {
+				continue
+			}
+			seen[svc.ServiceUID] = true
+			allServices = append(allServices, serviceInfo{
+				uid:                 svc.ServiceUID,
+				bookedDepartureTime: svc.LocationDetail.GBTTBookedDeparture,
+				platform:            svc.LocationDetail.Platform,
+			})
+		}
+	}
+
+	if len(allServices) == 0 {
+		return []Departure{}, nil
+	}
+
+	// Get detailed info for each service concurrently
+	type departureResult struct {
+		departure *Departure
+	}
+	depResults := make([]departureResult, len(allServices))
+
+	for i, svc := range allServices {
+		wg.Add(1)
+		go func(idx int, s serviceInfo) {
+			defer wg.Done()
+			serviceURL := fmt.Sprintf("%s/service/%s/%s",
+				baseURL,
+				s.uid,
+				dateStr)
+
+			req, err := http.NewRequest("GET", serviceURL, nil)
+			if err != nil {
+				return
+			}
+			req.Header.Set("Authorization", c.auth)
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return
+			}
+
+			var serviceResp serviceResponse
+			if err := json.NewDecoder(resp.Body).Decode(&serviceResp); err != nil {
+				resp.Body.Close()
+				return
+			}
+			resp.Body.Close()
+
+			depResults[idx].departure = c.buildDeparture(
+				&serviceResp,
+				strings.ToUpper(to),
+				s.bookedDepartureTime,
+				s.platform,
+			)
+		}(i, svc)
+	}
+	wg.Wait()
+
+	// Collect results, filtering out departed trains
+	currentTime := getCurrentTime()
+	var departures []Departure
+	for _, dr := range depResults {
+		if dr.departure != nil && dr.departure.BookedDepartureTime >= currentTime {
+			departures = append(departures, *dr.departure)
+		}
+	}
+
+	// Sort by departure time
+	sort.Slice(departures, func(i, j int) bool {
+		return departures[i].BookedDepartureTime < departures[j].BookedDepartureTime
+	})
+
+	return departures, nil
+}
+
+func (c *Client) fetchSearchResults(searchURL string) (*searchResponse, error) {
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
 		return nil, err
@@ -79,7 +198,7 @@ func (c *Client) GetDepartures(from, to string) ([]Departure, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d for URL: %s", resp.StatusCode, searchURL)
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
 	var searchResp searchResponse
@@ -87,56 +206,7 @@ func (c *Client) GetDepartures(from, to string) ([]Departure, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if len(searchResp.Services) == 0 {
-		return []Departure{}, nil
-	}
-
-	// Get detailed info for each service
-	var departures []Departure
-	now := time.Now()
-	dateStr := fmt.Sprintf("%d/%02d/%02d", now.Year(), now.Month(), now.Day())
-
-	for _, service := range searchResp.Services {
-		if !service.IsPassenger {
-			continue
-		}
-
-		serviceURL := fmt.Sprintf("%s/service/%s/%s",
-			baseURL,
-			service.ServiceUID,
-			dateStr)
-
-		req, err := http.NewRequest("GET", serviceURL, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("Authorization", c.auth)
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			continue
-		}
-
-		var serviceResp serviceResponse
-		if err := json.NewDecoder(resp.Body).Decode(&serviceResp); err != nil {
-			resp.Body.Close()
-			continue
-		}
-		resp.Body.Close()
-
-		departure := c.buildDeparture(
-			&serviceResp,
-			strings.ToUpper(to),
-			service.LocationDetail.GBTTBookedDeparture,
-			service.LocationDetail.Platform,
-		)
-
-		if departure != nil {
-			departures = append(departures, *departure)
-		}
-	}
-
-	return departures, nil
+	return &searchResp, nil
 }
 
 func (c *Client) buildDeparture(

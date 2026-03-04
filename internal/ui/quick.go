@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/barryhall/rtt-cli/internal/api"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -13,6 +14,8 @@ type QuickDisplayModel struct {
 	fromName   string
 	toName     string
 	departures []api.Departure
+	viewport   viewport.Model
+	ready      bool
 }
 
 func NewQuickDisplayModel(fromName, toName string, departures []api.Departure) QuickDisplayModel {
@@ -33,18 +36,58 @@ func (m QuickDisplayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "q" || msg.String() == "ctrl+c" || msg.String() == "esc" {
 			return m, tea.Quit
 		}
+		if m.ready {
+			switch msg.String() {
+			case "j":
+				m.viewport.ScrollDown(1)
+			case "k":
+				m.viewport.ScrollUp(1)
+			}
+		}
+	case tea.WindowSizeMsg:
+		headerHeight := 3 // title + blank line
+		footerHeight := 3 // blank line + footer + blank line
+		if !m.ready {
+			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
+			m.viewport.SetContent(m.renderTable())
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - headerHeight - footerHeight
+			m.viewport.SetContent(m.renderTable())
+		}
+		return m, nil
 	}
+
+	if m.ready {
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
+	}
+
 	return m, nil
 }
 
 func (m QuickDisplayModel) View() string {
+	if !m.ready {
+		return ""
+	}
+
 	theme := CurrentTheme()
 
-	// Title
 	titleStyle := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
 	title := titleStyle.Render(fmt.Sprintf("🚂 Trains from %s to %s", m.fromName, m.toName))
 
-	// Build table rows
+	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
+	scrollInfo := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))
+	footer := footerStyle.Render(fmt.Sprintf("↑/↓ scroll • %s • q to quit", scrollInfo))
+
+	return title + "\n\n" + m.viewport.View() + "\n\n" + footer + "\n"
+}
+
+func (m QuickDisplayModel) renderTable() string {
+	theme := CurrentTheme()
+
 	rows := [][]string{}
 	for _, dep := range m.departures {
 		formattedTime := formatTime(dep.BookedDepartureTime)
@@ -58,7 +101,6 @@ func (m QuickDisplayModel) View() string {
 		})
 	}
 
-	// Create table
 	t := table.New().
 		Border(lipgloss.NormalBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(theme.Border)).
@@ -90,8 +132,5 @@ func (m QuickDisplayModel) View() string {
 			}
 		})
 
-	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
-	footer := footerStyle.Render("Press q to quit")
-
-	return title + "\n\n" + t.String() + "\n\n" + footer + "\n"
+	return t.String()
 }
