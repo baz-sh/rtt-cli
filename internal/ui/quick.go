@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 
-	"github.com/barryhall/rtt-cli/internal/api"
+	"github.com/baz-sh/rtt-cli/internal/api"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

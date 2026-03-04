@@ -1,4 +1,4 @@
-module github.com/barryhall/rtt-cli
+module github.com/baz-sh/rtt-cli
 
 go 1.25.4
 

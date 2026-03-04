@@ -3,8 +3,8 @@ package ui
 import (
 	"fmt"
 
-	"github.com/barryhall/rtt-cli/internal/api"
-	"github.com/barryhall/rtt-cli/internal/stations"
+	"github.com/baz-sh/rtt-cli/internal/api"
+	"github.com/baz-sh/rtt-cli/internal/stations"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"

@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/barryhall/rtt-cli/internal/api"
-	"github.com/barryhall/rtt-cli/internal/config"
-	"github.com/barryhall/rtt-cli/internal/stations"
-	"github.com/barryhall/rtt-cli/internal/ui"
+	"github.com/baz-sh/rtt-cli/internal/api"
+	"github.com/baz-sh/rtt-cli/internal/config"
+	"github.com/baz-sh/rtt-cli/internal/stations"
+	"github.com/baz-sh/rtt-cli/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
