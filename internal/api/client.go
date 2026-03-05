@@ -64,33 +64,33 @@ func (c *Client) GetDepartures(from, to string) ([]Departure, error) {
 
 	now := time.Now()
 	dateStr := fmt.Sprintf("%d/%02d/%02d", now.Year(), now.Month(), now.Day())
+	fromUpper := url.PathEscape(strings.ToUpper(from))
+	toUpper := url.PathEscape(strings.ToUpper(to))
 
-	// Query time windows from now until end of day (2-hour steps to avoid gaps)
-	var timeWindows []string
-	for h := now.Hour(); h < 24; h += 2 {
-		timeWindows = append(timeWindows, fmt.Sprintf("%02d00", h))
+	// Build search URLs:
+	// 1. Original endpoint (no time param) for accurate near-term results
+	// 2. Time-windowed calls (2-hour steps) for the rest of the day
+	var searchURLs []string
+	searchURLs = append(searchURLs, fmt.Sprintf("%s/search/%s/to/%s", baseURL, fromUpper, toUpper))
+	for h := now.Hour() + 2; h < 24; h += 2 {
+		searchURLs = append(searchURLs, fmt.Sprintf("%s/search/%s/to/%s/%s/%02d00",
+			baseURL, fromUpper, toUpper, dateStr, h))
 	}
 
 	type searchResult struct {
 		resp *searchResponse
 		err  error
 	}
-	results := make([]searchResult, len(timeWindows))
+	results := make([]searchResult, len(searchURLs))
 
 	var wg sync.WaitGroup
-	for i, tw := range timeWindows {
+	for i, u := range searchURLs {
 		wg.Add(1)
-		go func(idx int, timeWindow string) {
+		go func(idx int, searchURL string) {
 			defer wg.Done()
-			searchURL := fmt.Sprintf("%s/search/%s/to/%s/%s/%s",
-				baseURL,
-				url.PathEscape(strings.ToUpper(from)),
-				url.PathEscape(strings.ToUpper(to)),
-				dateStr,
-				timeWindow)
 			resp, err := c.fetchSearchResults(searchURL)
 			results[idx] = searchResult{resp: resp, err: err}
-		}(i, tw)
+		}(i, u)
 	}
 	wg.Wait()
 
