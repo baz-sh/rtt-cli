@@ -5,11 +5,12 @@ import (
 
 	"github.com/baz-sh/rtt-cli/internal/api"
 	"github.com/baz-sh/rtt-cli/internal/stations"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 )
 
 type stationItem struct {
@@ -34,8 +35,10 @@ type SelectorModel struct {
 	step        selectionStep
 	fromStation *stationItem
 	toStation   *stationItem
-	list      list.Model
-	apiClient *api.Client
+	list        list.Model
+	delegate    list.DefaultDelegate
+	spinner     spinner.Model
+	apiClient   *api.Client
 	departures  []api.Departure
 	err         error
 	width       int
@@ -62,19 +65,37 @@ func NewSelectorModel(apiClient *api.Client) SelectorModel {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 
+	s := spinner.New(
+		spinner.WithSpinner(spinner.Points),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))),
+	)
+
 	return SelectorModel{
 		step:      selectingFrom,
 		list:      l,
+		delegate:  delegate,
+		spinner:   s,
 		apiClient: apiClient,
 	}
 }
 
 func (m SelectorModel) Init() tea.Cmd {
-	return nil
+	return tea.RequestBackgroundColor
 }
 
 func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.BackgroundColorMsg:
+		isDark := msg.IsDark()
+		SetDarkMode(isDark)
+		m.list.Styles = list.DefaultStyles(isDark)
+		m.delegate.Styles = list.NewDefaultItemStyles(isDark)
+		m.list.SetDelegate(m.delegate)
+		if m.step == showingResults {
+			m.initResultsViewport()
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -84,7 +105,7 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
@@ -107,7 +128,7 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.toStation = &station
 					m.step = searching
-					return m, m.searchDepartures()
+					return m, tea.Batch(m.spinner.Tick, m.searchDepartures())
 				}
 			}
 
@@ -135,17 +156,22 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	if m.step == selectingFrom || m.step == selectingTo {
+	switch m.step {
+	case selectingFrom, selectingTo:
 		m.list, cmd = m.list.Update(msg)
+	case searching:
+		m.spinner, cmd = m.spinner.Update(msg)
 	}
 
 	return m, cmd
 }
 
-func (m SelectorModel) View() string {
+func (m SelectorModel) View() tea.View {
+	v := tea.NewView("")
+
 	switch m.step {
 	case selectingFrom, selectingTo:
-		return m.list.View()
+		v = tea.NewView(m.list.View())
 
 	case searching:
 		theme := CurrentTheme()
@@ -153,8 +179,8 @@ func (m SelectorModel) View() string {
 			Foreground(theme.Title).
 			Bold(true).
 			Padding(1, 0)
-		return style.Render(fmt.Sprintf("🚂 Searching for trains from %s to %s...",
-			m.fromStation.name, m.toStation.name))
+		v = tea.NewView(style.Render(fmt.Sprintf("%s Searching for trains from %s to %s...",
+			m.spinner.View(), m.fromStation.name, m.toStation.name)))
 
 	case showingResults:
 		if m.err != nil {
@@ -163,13 +189,14 @@ func (m SelectorModel) View() string {
 				Foreground(theme.Error).
 				Bold(true).
 				Padding(1, 0)
-			return errorStyle.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err))
+			v = tea.NewView(errorStyle.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err)))
+		} else {
+			v = tea.NewView(m.renderDepartures())
 		}
-
-		return m.renderDepartures()
 	}
 
-	return ""
+	v.AltScreen = true
+	return v
 }
 
 func (m *SelectorModel) searchDepartures() tea.Cmd {
@@ -182,7 +209,7 @@ func (m *SelectorModel) searchDepartures() tea.Cmd {
 func (m *SelectorModel) initResultsViewport() {
 	headerHeight := 3 // title + blank line
 	footerHeight := 3 // blank line + footer + blank line
-	m.viewport = viewport.New(m.width, m.height-headerHeight-footerHeight)
+	m.viewport = viewport.New(viewport.WithWidth(m.width), viewport.WithHeight(m.height-headerHeight-footerHeight))
 	m.viewport.SetContent(m.renderTable())
 }
 
@@ -197,7 +224,7 @@ func (m SelectorModel) renderDepartures() string {
 	}
 
 	titleStyle := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
-	title := titleStyle.Render(fmt.Sprintf("🚂 Trains from %s to %s", m.fromStation.name, m.toStation.name))
+	title := titleStyle.Render(fmt.Sprintf("Trains from %s to %s", m.fromStation.name, m.toStation.name))
 
 	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
 	scrollInfo := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))

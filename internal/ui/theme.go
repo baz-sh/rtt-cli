@@ -1,22 +1,23 @@
 package ui
 
 import (
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"image/color"
+
+	"charm.land/lipgloss/v2"
 )
 
 // Theme holds all color definitions used throughout the UI.
 type Theme struct {
-	Title       lipgloss.Color
-	Error       lipgloss.Color
-	Muted       lipgloss.Color
-	Border      lipgloss.Color
-	Time        lipgloss.Color
-	Leaving     lipgloss.Color
-	DepPlatform lipgloss.Color
-	ArrPlatform lipgloss.Color
-	Service     lipgloss.Color
-	Duration    lipgloss.Color
+	Title       color.Color
+	Error       color.Color
+	Muted       color.Color
+	Border      color.Color
+	Time        color.Color
+	Leaving     color.Color
+	DepPlatform color.Color
+	ArrPlatform color.Color
+	Service     color.Color
+	Duration    color.Color
 }
 
 // Dark theme - bright/saturated colors for dark terminal backgrounds.
@@ -47,19 +48,17 @@ var lightTheme = Theme{
 	Duration:    lipgloss.Color("61"),  // dark lavender/slate blue
 }
 
-// currentTheme holds the active theme, set once at init.
-var currentTheme Theme
+// currentTheme defaults to dark, updated when Bubble Tea detects background color.
+var currentTheme = darkTheme
 
-func init() {
-	currentTheme = detectTheme()
-}
-
-// detectTheme selects the appropriate color theme based on the terminal background.
-func detectTheme() Theme {
-	if termenv.HasDarkBackground() {
-		return darkTheme
+// SetDarkMode updates the theme based on terminal background.
+// Called from Bubble Tea models when they receive tea.BackgroundColorMsg.
+func SetDarkMode(isDark bool) {
+	if isDark {
+		currentTheme = darkTheme
+	} else {
+		currentTheme = lightTheme
 	}
-	return lightTheme
 }
 
 // CurrentTheme returns the active theme.

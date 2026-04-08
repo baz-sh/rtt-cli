@@ -4,35 +4,69 @@ import (
 	"fmt"
 
 	"github.com/baz-sh/rtt-cli/internal/api"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 )
 
 type QuickDisplayModel struct {
 	fromName   string
+	fromCode   string
 	toName     string
+	toCode     string
+	apiClient  *api.Client
 	departures []api.Departure
+	spinner    spinner.Model
 	viewport   viewport.Model
+	loading    bool
 	ready      bool
+	err        error
 }
 
-func NewQuickDisplayModel(fromName, toName string, departures []api.Departure) QuickDisplayModel {
+type quickSearchCompleteMsg struct {
+	departures []api.Departure
+	err        error
+}
+
+func NewQuickDisplayModel(apiClient *api.Client, fromCode, toCode, fromName, toName string) QuickDisplayModel {
+	s := spinner.New(
+		spinner.WithSpinner(spinner.Points),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))),
+	)
 	return QuickDisplayModel{
-		fromName:   fromName,
-		toName:     toName,
-		departures: departures,
+		fromName:  fromName,
+		fromCode:  fromCode,
+		toName:    toName,
+		toCode:    toCode,
+		apiClient: apiClient,
+		spinner:   s,
+		loading:   true,
 	}
 }
 
 func (m QuickDisplayModel) Init() tea.Cmd {
-	return nil
+	return tea.Batch(tea.RequestBackgroundColor, m.spinner.Tick, m.fetchDepartures())
+}
+
+func (m QuickDisplayModel) fetchDepartures() tea.Cmd {
+	return func() tea.Msg {
+		departures, err := m.apiClient.GetDepartures(m.fromCode, m.toCode)
+		return quickSearchCompleteMsg{departures: departures, err: err}
+	}
 }
 
 func (m QuickDisplayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.BackgroundColorMsg:
+		SetDarkMode(msg.IsDark())
+		if m.ready {
+			m.viewport.SetContent(m.renderTable())
+		}
+		return m, nil
+
+	case tea.KeyPressMsg:
 		if msg.String() == "q" || msg.String() == "ctrl+c" || msg.String() == "esc" {
 			return m, tea.Quit
 		}
@@ -44,19 +78,35 @@ func (m QuickDisplayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.ScrollUp(1)
 			}
 		}
+
+	case quickSearchCompleteMsg:
+		m.loading = false
+		m.departures = msg.departures
+		m.err = msg.err
+		if m.ready {
+			m.viewport.SetContent(m.renderTable())
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		headerHeight := 3 // title + blank line
 		footerHeight := 3 // blank line + footer + blank line
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
+			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height-headerHeight-footerHeight))
 			m.viewport.SetContent(m.renderTable())
 			m.ready = true
 		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - headerHeight - footerHeight
+			m.viewport.SetWidth(msg.Width)
+			m.viewport.SetHeight(msg.Height - headerHeight - footerHeight)
 			m.viewport.SetContent(m.renderTable())
 		}
 		return m, nil
+	}
+
+	if m.loading {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	if m.ready {
@@ -68,21 +118,50 @@ func (m QuickDisplayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m QuickDisplayModel) View() string {
-	if !m.ready {
-		return ""
-	}
-
+func (m QuickDisplayModel) View() tea.View {
+	v := tea.NewView("")
 	theme := CurrentTheme()
 
+	if m.loading {
+		style := lipgloss.NewStyle().
+			Foreground(theme.Title).
+			Bold(true).
+			Padding(1, 0)
+		v = tea.NewView(style.Render(fmt.Sprintf("%s Searching for trains from %s to %s...",
+			m.spinner.View(), m.fromName, m.toName)))
+		v.AltScreen = true
+		return v
+	}
+
+	if m.err != nil {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(theme.Error).
+			Bold(true).
+			Padding(1, 0)
+		v = tea.NewView(errorStyle.Render(fmt.Sprintf("Error: %v\n\nPress q to quit", m.err)))
+		v.AltScreen = true
+		return v
+	}
+
+	if !m.ready || len(m.departures) == 0 {
+		emptyStyle := lipgloss.NewStyle().
+			Foreground(theme.Muted).
+			Padding(1, 0)
+		v = tea.NewView(emptyStyle.Render("No departures found.\n\nPress q to quit"))
+		v.AltScreen = true
+		return v
+	}
+
 	titleStyle := lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
-	title := titleStyle.Render(fmt.Sprintf("🚂 Trains from %s to %s", m.fromName, m.toName))
+	title := titleStyle.Render(fmt.Sprintf("Trains from %s to %s", m.fromName, m.toName))
 
 	footerStyle := lipgloss.NewStyle().Foreground(theme.Muted)
 	scrollInfo := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))
 	footer := footerStyle.Render(fmt.Sprintf("↑/↓ scroll • %s • q to quit", scrollInfo))
 
-	return title + "\n\n" + m.viewport.View() + "\n\n" + footer + "\n"
+	v = tea.NewView(title + "\n\n" + m.viewport.View() + "\n\n" + footer + "\n")
+	v.AltScreen = true
+	return v
 }
 
 func (m QuickDisplayModel) renderTable() string {

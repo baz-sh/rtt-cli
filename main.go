@@ -9,7 +9,7 @@ import (
 	"github.com/baz-sh/rtt-cli/internal/config"
 	"github.com/baz-sh/rtt-cli/internal/stations"
 	"github.com/baz-sh/rtt-cli/internal/ui"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 	}
 
 	// Interactive mode
-	p := tea.NewProgram(ui.NewSelectorModel(client), tea.WithAltScreen())
+	p := tea.NewProgram(ui.NewSelectorModel(client))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
@@ -92,22 +92,8 @@ func findStation(code string) *stations.Station {
 }
 
 func runQuickMode(client *api.Client, fromCode, toCode, fromName, toName string) {
-	fmt.Printf("🚂 Searching for trains from %s to %s...\n\n", fromName, toName)
-
-	departures, err := client.GetDepartures(fromCode, toCode)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if len(departures) == 0 {
-		fmt.Println("No departures found.")
-		os.Exit(0)
-	}
-
-	// Use the QuickDisplay model to render results
-	m := ui.NewQuickDisplayModel(fromName, toName, departures)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	m := ui.NewQuickDisplayModel(client, fromCode, toCode, fromName, toName)
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
