@@ -360,10 +360,10 @@ func buildDeparture(svcResp *serviceResponse, to string, info serviceInfo) *Depa
 
 	depPlatform := info.platform
 	if depPlatform == "" {
-		depPlatform = "-"
+		depPlatform = "1"
 	}
 	if arrPlatform == "" {
-		arrPlatform = "-"
+		arrPlatform = "1"
 	}
 
 	return &Departure{

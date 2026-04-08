@@ -1,14 +1,15 @@
 # RTT CLI - UK Train Times Terminal App
 
-A beautiful terminal UI for checking UK train times, powered by the Realtime Trains API.
+A terminal UI for checking UK train times, powered by the Realtime Trains API v2.
 
 ## Features
 
-- 🚂 Search for direct train services between UK stations
-- 🔍 Fuzzy search for stations by name or code
-- 🎨 Colorful, easy-to-read departure listings with automatic light/dark mode support
-- ⚡ Fast and lightweight (single binary)
-- 📊 Shows departure times, platforms, service operators, and journey duration
+- Search for direct train services between UK stations
+- Fuzzy search for stations by name or code
+- Automatic light/dark mode detection
+- Loading animations during search
+- Fast and lightweight (single binary)
+- Shows departure times, platforms, service operators, and journey duration
 
 ## Installation
 
@@ -56,50 +57,46 @@ Or use station codes directly for quick lookups:
 
 ### How it works
 
-1. **Select Departure Station**: Use arrow keys (↑/↓) to browse or type to filter stations
+1. **Select Departure Station**: Browse or type to fuzzy-search stations
 2. **Select Arrival Station**: Same as above for your destination
-3. **View Results**: See all upcoming direct trains with:
-   - Departure time
-   - Time until departure
-   - Departure platform (red)
-   - Arrival platform (green)
-   - Train service operator
-   - Journey duration
+3. **View Results**: See all upcoming direct trains with departure time, time until departure, platforms, service operator, and journey duration
 
 ### Keyboard Shortcuts
 
-- `↑/↓` or `j/k` - Navigate station list
+- `↑/↓` or `j/k` - Navigate station list / scroll results
 - `/` - Filter/search stations
 - `Enter` - Select station
 - `Esc` - Clear filter
-- `q` or `Ctrl+C` - Quit application
+- `q` or `Ctrl+C` - Quit
 
 ## Example
 
 ```
-🚂 Trains from London Euston to Manchester Piccadilly
+Trains from London Euston to Manchester Piccadilly
 
-Time      Leaving       Dep Plat  Arr Plat  Service          Duration
-────────────────────────────────────────────────────────────────────────
-14:30     5min          9         13        Avanti West C... 2hr 8min
-14:45     20min         7         14        Avanti West C... 2hr 10min
-15:00     35min         8         13        Avanti West C... 2hr 7min
+┌───────┬──────────┬──────────┬──────────┬──────────────────────┬──────────┐
+│ Time  │ Leaving  │ Dep Plat │ Arr Plat │ Service              │ Duration │
+├───────┼──────────┼──────────┼──────────┼──────────────────────┼──────────┤
+│ 14:30 │ 5min     │ 9        │ 13       │ Avanti West Coast    │ 2hr 8min │
+│ 14:45 │ 20min    │ 7        │ 14       │ Avanti West Coast    │ 2hr 10m  │
+│ 15:00 │ 35min    │ 8        │ 13       │ Avanti West Coast    │ 2hr 7min │
+└───────┴──────────┴──────────┴──────────┴──────────────────────┴──────────┘
 ```
 
 ## Theming
 
-The application automatically detects whether your terminal has a light or dark background and adjusts its color palette accordingly. No configuration is needed — it works out of the box on most modern terminals (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal, etc.).
+The application automatically detects whether your terminal has a light or dark background and adjusts its color palette accordingly. No configuration needed.
 
 ## API
 
-This application uses the [Realtime Trains API v2](https://data.rtt.io/) to fetch live train data.
+This application uses the [Realtime Trains API v2](https://data.rtt.io/) to fetch live train data. Authentication uses a refresh token exchanged for short-life access tokens.
 
 ## Tech Stack
 
 - [Go](https://golang.org/)
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Style definitions
-- [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components
+- [Bubble Tea v2](https://charm.land/bubbletea/v2) - Terminal UI framework
+- [Lip Gloss v2](https://charm.land/lipgloss/v2) - Style definitions
+- [Bubbles v2](https://charm.land/bubbles/v2) - TUI components
 
 ## License
 
