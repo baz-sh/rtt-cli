@@ -6,7 +6,6 @@ import (
 	"github.com/baz-sh/rtt-cli/internal/api"
 	"github.com/baz-sh/rtt-cli/internal/stations"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -35,9 +34,8 @@ type SelectorModel struct {
 	step        selectionStep
 	fromStation *stationItem
 	toStation   *stationItem
-	list        list.Model
-	textInput   textinput.Model
-	apiClient   *api.Client
+	list      list.Model
+	apiClient *api.Client
 	departures  []api.Departure
 	err         error
 	width       int
@@ -64,15 +62,9 @@ func NewSelectorModel(apiClient *api.Client) SelectorModel {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 
-	// Create text input for search
-	ti := textinput.New()
-	ti.Placeholder = "Search stations..."
-	ti.Focus()
-
 	return SelectorModel{
 		step:      selectingFrom,
 		list:      l,
-		textInput: ti,
 		apiClient: apiClient,
 	}
 }
@@ -219,9 +211,8 @@ func (m SelectorModel) renderTable() string {
 
 	rows := [][]string{}
 	for _, dep := range m.departures {
-		formattedTime := formatTime(dep.BookedDepartureTime)
 		rows = append(rows, []string{
-			formattedTime,
+			dep.BookedDepartureTime,
 			dep.Leaving,
 			dep.DeparturePlatform,
 			dep.Platform,
@@ -262,13 +253,6 @@ func (m SelectorModel) renderTable() string {
 		})
 
 	return t.String()
-}
-
-func formatTime(timeStr string) string {
-	if len(timeStr) < 4 {
-		return timeStr
-	}
-	return timeStr[0:2] + ":" + timeStr[2:4]
 }
 
 func truncate(s string, maxLen int) string {

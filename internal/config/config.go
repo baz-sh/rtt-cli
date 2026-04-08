@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,8 +12,12 @@ import (
 )
 
 type Config struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Token string `json:"token"`
+}
+
+// isValid returns true if the config has the required fields.
+func (c *Config) isValid() bool {
+	return c.Token != ""
 }
 
 func configPath() (string, error) {
@@ -42,6 +45,11 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
+	}
+
+	// Handle stale configs (e.g. old username/password format)
+	if !cfg.isValid() {
+		return nil, nil
 	}
 
 	return &cfg, nil
@@ -81,36 +89,26 @@ func Reset() error {
 }
 
 func PromptForCredentials() (*Config, error) {
-	reader := bufio.NewReader(os.Stdin)
-
 	fmt.Println("🔐 RTT CLI Configuration")
-	fmt.Println("Register for API credentials at: https://api.rtt.io/")
+	fmt.Println("Get an API token at: https://data.rtt.io/")
 	fmt.Println()
 
-	fmt.Print("Username: ")
-	username, err := reader.ReadString('\n')
+	fmt.Print("API Token: ")
+	tokenBytes, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return nil, err
 	}
-	username = strings.TrimSpace(username)
-
-	fmt.Print("Password: ")
-	passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println() // New line after hidden password input
+	fmt.Println() // New line after hidden input
 
 	cfg := &Config{
-		Username: username,
-		Password: string(passwordBytes),
+		Token: strings.TrimSpace(string(tokenBytes)),
 	}
 
 	if err := Save(cfg); err != nil {
 		return nil, fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Println("✓ Credentials saved to ~/.config/rtt-cli/config.json")
+	fmt.Println("✓ Token saved to ~/.config/rtt-cli/config.json")
 	fmt.Println()
 
 	return cfg, nil

@@ -90,9 +90,8 @@ func (m QuickDisplayModel) renderTable() string {
 
 	rows := [][]string{}
 	for _, dep := range m.departures {
-		formattedTime := formatTime(dep.BookedDepartureTime)
 		rows = append(rows, []string{
-			formattedTime,
+			dep.BookedDepartureTime,
 			dep.Leaving,
 			dep.DeparturePlatform,
 			dep.Platform,

@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// Create API client with credentials
-	client := api.NewClient(cfg.Username, cfg.Password)
+	client := api.NewClient(cfg.Token)
 
 	// Check for command-line arguments: rtt-cli FROM TO
 	if len(os.Args) == 3 {

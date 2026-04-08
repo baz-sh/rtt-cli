@@ -26,11 +26,11 @@ go build -o rtt-cli .
 
 ## Configuration
 
-This app requires API credentials from Realtime Trains:
+This app requires an API token from Realtime Trains:
 
-1. Register for a free account at [https://api.rtt.io/](https://api.rtt.io/)
-2. On first run, you'll be prompted to enter your username and password
-3. Credentials are stored locally in `~/.config/rtt-cli/config.json`
+1. Register for a free account at [https://data.rtt.io/](https://data.rtt.io/)
+2. On first run, you'll be prompted to enter your API token
+3. Your token is stored locally in `~/.config/rtt-cli/config.json`
 
 To reset your credentials, run:
 
@@ -92,7 +92,7 @@ The application automatically detects whether your terminal has a light or dark 
 
 ## API
 
-This application uses the [Realtime Trains API](https://www.realtimetrains.co.uk/) to fetch live train data.
+This application uses the [Realtime Trains API v2](https://data.rtt.io/) to fetch live train data.
 
 ## Tech Stack
 
