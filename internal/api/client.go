@@ -390,12 +390,13 @@ func findLocation(locations []serviceLocation, code string) *serviceLocation {
 }
 
 // parseAPITime parses an ISO 8601 datetime string from the API.
+// Times without a timezone offset are treated as local time.
 func parseAPITime(s string) time.Time {
-	// Try with timezone offset first, then without
-	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t
-		}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	if t, err := time.ParseInLocation("2006-01-02T15:04:05", s, time.Local); err == nil {
+		return t
 	}
 	return time.Time{}
 }
