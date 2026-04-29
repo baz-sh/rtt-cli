@@ -183,7 +183,12 @@ func (c *Client) fetchServices(from, to string, now time.Time) ([]serviceInfo, e
 	params.Set("code", from)
 	params.Set("filterTo", to)
 	params.Set("timeFrom", now.Format("2006-01-02T15:04:05"))
-	params.Set("timeWindow", "1439")
+	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+	minutesRemaining := int(endOfDay.Sub(now).Minutes())
+	if minutesRemaining < 1 {
+		minutesRemaining = 1
+	}
+	params.Set("timeWindow", fmt.Sprintf("%d", minutesRemaining))
 	locationURL := fmt.Sprintf("%s/gb-nr/location?%s", baseURL, params.Encode())
 
 	raw, err := c.fetchJSON(locationURL)
