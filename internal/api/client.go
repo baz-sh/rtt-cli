@@ -28,6 +28,7 @@ type Departure struct {
 	Duration            string
 	Leaving             string
 	Service             string
+	NextDay             bool
 	departureTime       time.Time // parsed, used for filtering/sorting
 }
 
@@ -183,12 +184,7 @@ func (c *Client) fetchServices(from, to string, now time.Time) ([]serviceInfo, e
 	params.Set("code", from)
 	params.Set("filterTo", to)
 	params.Set("timeFrom", now.Format("2006-01-02T15:04:05"))
-	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
-	minutesRemaining := int(endOfDay.Sub(now).Minutes())
-	if minutesRemaining < 1 {
-		minutesRemaining = 1
-	}
-	params.Set("timeWindow", fmt.Sprintf("%d", minutesRemaining))
+	params.Set("timeWindow", "1439")
 	locationURL := fmt.Sprintf("%s/gb-nr/location?%s", baseURL, params.Encode())
 
 	raw, err := c.fetchJSON(locationURL)
@@ -371,14 +367,25 @@ func buildDeparture(svcResp *serviceResponse, to string, info serviceInfo) *Depa
 		arrPlatform = "1"
 	}
 
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	depDay := time.Date(depTime.Year(), depTime.Month(), depTime.Day(), 0, 0, 0, 0, depTime.Location())
+	nextDay := depDay.After(today)
+
+	timeStr := depTime.Format("15:04")
+	if nextDay {
+		timeStr = depTime.Format("15:04 (Mon)")
+	}
+
 	return &Departure{
-		BookedDepartureTime: depTime.Format("15:04"),
+		BookedDepartureTime: timeStr,
 		DeparturePlatform:   depPlatform,
 		Platform:            arrPlatform,
 		ArrivingAt:          arrTime.Format("15:04"),
 		Duration:            formatDuration(depTime, arrTime),
-		Leaving:             formatDuration(time.Now(), depTime),
+		Leaving:             formatDuration(now, depTime),
 		Service:             info.operator,
+		NextDay:             nextDay,
 		departureTime:       depTime,
 	}
 }

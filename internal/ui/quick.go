@@ -168,7 +168,12 @@ func (m QuickDisplayModel) renderTable() string {
 	theme := CurrentTheme()
 
 	rows := [][]string{}
+	addedSeparator := false
 	for _, dep := range m.departures {
+		if dep.NextDay && !addedSeparator {
+			rows = append(rows, []string{"── Tomorrow ──", "", "", "", "", ""})
+			addedSeparator = true
+		}
 		rows = append(rows, []string{
 			dep.BookedDepartureTime,
 			dep.Leaving,
@@ -186,6 +191,12 @@ func (m QuickDisplayModel) renderTable() string {
 		Rows(rows...).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == -1 {
+				return lipgloss.NewStyle().
+					Foreground(theme.Muted).
+					Bold(true).
+					Align(lipgloss.Left)
+			}
+			if row >= 0 && row < len(rows) && rows[row][0] == "── Tomorrow ──" {
 				return lipgloss.NewStyle().
 					Foreground(theme.Muted).
 					Bold(true).
